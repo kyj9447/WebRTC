@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WebSocket Test Sender</title>
+    <script>
+        var pc;
+        var socket = new WebSocket("wss://kyj9447.iptime.org:3000");
+
+        async function startStream() {
+            // Get the webcam stream
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+            // Set the video element's srcObject to the webcam stream
+            document.getElementById('video').srcObject = stream;
+
+            // Create a new RTCPeerConnection
+            pc = new RTCPeerConnection();
+
+            // Add the webcam stream to the RTCPeerConnection
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+            // Create an offer
+            const offer = await pc.createOffer();
+
+            // Set the local description to the offer
+            await pc.setLocalDescription(offer);
+
+            // Return the offer
+            return pc.localDescription;
+        }
+
+        async function sendMessage(event) {
+            event.preventDefault();
+
+            var roomrequest = document.getElementById('roomrequest').value;
+            var username = document.getElementById('username').value;
+
+            // 본인 카메라 스트림 시작 및 offer 생성
+            const offer = await startStream();
+
+            socket.onopen = function () {
+                var message = {
+                    roomrequest: roomrequest,
+                    username: username,
+                    offer: offer
+                };
+                socket.send(JSON.stringify(message));
+                console.log("Sent message: " + JSON.stringify(message));
+            };
+
+            // 소켓이 메시지를 받았을 때
+            socket.onmessage = function (event) {
+                var receivedMessage = event.data;
+                var messageElement = document.createElement("p");
+                messageElement.textContent = "Received message: " + receivedMessage;
+                document.body.appendChild(messageElement);
+
+                console.log("Received message: " + receivedMessage);
+            };
+
+            // 소켓이 닫혔을 때 (타임아웃, 연결 끊김 등)
+            socket.onclose = function (event) {
+                console.log("Connection closed");
+            };
+        }
+        
+    </script>
+</head>
+
+<body>
+    <h1>WebSocket Test Sender</h1>
+    <form onsubmit="sendMessage(event)">
+        <label for="roomrequest">Room Request:</label><br>
+        <input type="text" id="roomrequest" name="roomrequest"><br>
+        <label for="username">Username:</label><br>
+        <input type="text" id="username" name="username"><br>
+        <input type="submit" value="Submit">
+    </form>
+    <video id='video' autoplay controls width="320" height="240"></video>
+</body>
+
+</html>
