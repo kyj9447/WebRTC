@@ -5,11 +5,10 @@ const fs = require('fs');
 
 const app = express();
 const options = {
-    cert: fs.readFileSync('SSL\\certificate.crt','utf8'),
-    key: fs.readFileSync('SSL\\privatekey.pem','utf8'),
+    cert: fs.readFileSync('SSL\\certificate.crt', 'utf8'),
+    key: fs.readFileSync('SSL\\privatekey.pem', 'utf8'),
 };
-const server = https.createServer(options,app);
-//const server = http.createServer(app);
+const server = https.createServer(options, app);
 const wss = new WebSocket.Server({ server });
 
 // rooms 리스트
@@ -19,7 +18,7 @@ const rooms = [];
 //     roomnumber: 'sdfgkgjd1',
 //     users: [
 //         {username: 'John', sessionId: '1q2w3e4r'},
-//         {username: 'Jane', sessionId: '5t6y7u8i'},gi
+//         {username: 'Jane', sessionId: '5t6y7u8i'},
 //         ...
 //     ]
 // },
@@ -33,89 +32,119 @@ const rooms = [];
 //     ]
 // }
 
+// 웹소켓 연결
 wss.on('connection', (ws) => {
+    ws.sessionId = generateSessionId();
     console.log('WebSocket connection established');
+    const connections = {};
     ws.on('message', (message) => {
-        wss.sessionId = generateSessionId();
-
-        console.log(`Received message: ${message}`);
-        // ex) { roomrequest: '1q2w3e4r', username: 'John'}
+        // console.log(`Received message: ${message}`);
+        // ex1 최초 접속) { type: 'login', roomrequest: '1q2w3e4r', username: 'John', rtc: 'WebRTC offer'}
+        // ex2 RTC 통신) { type: 'RTC', rtc: 'WebRTC answer, WebRTC candidate'}
 
         // 메세지 파싱
         const data = JSON.parse(message);
 
-        // roomrequest, username 변수 저장
-        const { roomrequest, username } = data;
+        // type, roomrequest, username 변수 저장
+        const { type, roomrequest, username } = data;
 
-        // rooms 리스트에서 roomnumber가 roomrequest인 room을 찾음
-        // 없으면 undefined, 있으면 해당 room을 반환
-        const existingRoom = rooms.find((room) => room.roomnumber === roomrequest);
+        // 최초 접속인 경우
+        if (type === 'login') {
+            // user 객체 생성
+            const user = { username, sessionId: ws.sessionId };
+            console.log("username : " + user.username + " sessionId: " + ws.sessionId);
 
-        // user 객체 생성
-        const user = { username, sessionId: wss.sessionId };
-        console.log("username : " + username + " sessionId: " + wss.sessionId);
+            // rooms 리스트에서 roomnumber가 roomrequest인 room을 찾음
+            // 없으면 undefined, 있으면 해당 room을 반환
+            const existingRoom = rooms.find((room) => room.roomnumber === roomrequest);
 
-        if (existingRoom) {
+            // room이 존재하는 경우
+            if (existingRoom) {
+                console.log("기존 방에 사용자 추가");
+                // 해당 room의 users에 user를 추가
+                existingRoom.users.push(user);
+                console.log(existingRoom);
 
-            // rooms에 해당 room이 존재하면, 해당 room의 users에 user를 추가
-            existingRoom.users.push(user);
-            console.log(existingRoom);
+            }
+            // room이 존재하지 않는 경우
+            else {
+                // 해당 room을 생성하고 해당 room의 users에 user를 추가
+                const newRoom = {
+                    roomnumber: roomrequest,
+                    users: [user],
+                };
+                rooms.push(newRoom);
+                console.log(rooms);
+            }
 
-            // 해당 rooms에 속한 모든 user에게 메세지 전송
-            existingRoom.users.forEach((user) => {
-                wss.clients.forEach((client) => {
-                    if (client.readyState === WebSocket.OPEN && client.sessionId === user.sessionId) {
-                        client.send(`사용자 ${username} 님이 접속했습니다.`);
-                    }
-                });
-            });
-
-
-        } else {
-            // rooms에 해당 room이 존재하지 않으면, 해당 room을 생성하고 해당 room의 users에 user를 추가
-            const newRoom = {
-                roomnumber: roomrequest,
-                users: [user],
-            };
-            rooms.push(newRoom);
+            // !해당 room과 user를 connections에 저장! (이후 RTC 통신을 위해)
+            connections[ws.sessionId] = { existingRoom, user };
         }
 
-        // rooms 확인 후 해당 room의 user수가 0명인 경우 해당 room을 삭제 
+        // 모든 경우 공통실행 (해당 room에 존재하는 모든 user에게 메세지 전송)
+        if (connections[ws.sessionId].existingRoom) {
+            connections[ws.sessionId].existingRoom.users.forEach((otherUser) => {
+                if (otherUser.sessionId !== connections[ws.sessionId].user.sessionId) {
+                    wss.clients.forEach((client) => {
+                        if (client.readyState === WebSocket.OPEN && client.sessionId === otherUser.sessionId) {
+                            // 파싱 전 메세지 그대로 전송
+                            //console.log("message : " + data);
+                            client.send(JSON.stringify(data));
+                        }
+                    });
+                }
+            });
+        }
+    });
+
+    ws.on('close', () => {
+        // ex3 접속 종료시) { type: 'logout', username: 'John'}
+        console.log(`WebSocket connection closed ${ws.sessionId}`);
+
+        // 접속 종료시 해당 사용자가 속한 room을 찾음
+        const usedRoom = rooms.find((rooms) => {
+            return rooms.users.some((user) => user.sessionId === ws.sessionId);
+        });
+
+        console.log('Room: ', usedRoom.roomnumber);
+
+        if (usedRoom) {
+            console.log('Room with disconnected user: ', usedRoom);
+            // 연결 종료된 사용자의 index를 찾음
+            const disconnectedUserIndex = usedRoom.users.findIndex((user) => user.sessionId === ws.sessionId);
+            if (disconnectedUserIndex > -1) {
+                // splice를 사용하여 해당 index의 user를 삭제 (삭제된 user는 disconnectedUser에 저장)
+                const disconnectedUser = usedRoom.users.splice(disconnectedUserIndex, 1)[0];
+                // 해당 room의 users에 남아있는 user들에게 logout 메세지 전송
+                usedRoom.users.forEach((otherUser) => {
+                    wss.clients.forEach((client) => {
+                        if (client.readyState === WebSocket.OPEN && client.sessionId === otherUser.sessionId) {
+                            const logoutMessage = JSON.stringify({ type: 'logout', username: disconnectedUser.username });
+                            client.send(logoutMessage);
+                        }
+                    });
+                });
+            }
+        }
+
+        // 모든 rooms 확인 후 해당 room의 user수가 0명인 경우 해당 room을 삭제 
         rooms.forEach((room, index) => {
             if (room.users.length === 0) {
                 console.log('Removing room ', room.roomnumber);
                 rooms.splice(index, 1);
             }
         });
-
-
-    });
-
-    ws.on('close', () => {
-        console.log('WebSocket connection closed');
-    
-        // 접속 종료시 rooms 리스트에서 해당 세션 아이디를 가진 user를 삭제
-        rooms.forEach((room) => {
-            const userIndex = room.users.findIndex((user) => user.sessionId === wss.sessionId);
-            if (userIndex > -1) {
-                const user = room.users.splice(userIndex, 1)[0];
-    
-                // 해당 rooms에 속한 모든 user에게 메세지 전송
-                wss.clients.forEach((client) => {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(`사용자 ${user.username} 님이 접속을 종료했습니다.`);
-                    }
-                });
-            }
-        });
     });
 });
 
+// 뷰 렌더링
 const path = require('path');
+const { Console } = require('console');
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'views\\stream.html'));
 });
 
+// 서버 리스닝
 server.listen(3000, () => {
     console.log('WebSocket server is listening on port 3000');
 });
