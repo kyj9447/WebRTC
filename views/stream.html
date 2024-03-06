@@ -11,25 +11,22 @@
                 {
                     'urls': 'stun:stun.l.google.com:19302'
                 }
-                // ,
-                // {
-                //     'urls': 'turn:kyj9447.iptime.org:50001',
-                //     'username': 'test',
-                //     'credential': 'test'
-                // }
+                ,
+                {
+                    'urls': 'turn:kyj9447.iptime.org:50001?transport=udp',
+                    'username': 'test',
+                    'credential': 'test'
+                }
             ]
         }
 
         let socket = null;
-        // 내 Peer객체
-        //const myRTCPeer = new RTCPeerConnection(configuration);
-        //myRTCPeer.onicecandidate = onicecandidateHandler;
 
-        // 내 candidate들
-        //const myCandidates = [];
-
-        // 내 media stream
-        var tracks = [];
+        // 내 media track
+        var tracks;
+        
+        // 내 MediaStream
+        var myStream;
 
         // 내 sessionId
         var mySessionId = '';
@@ -40,6 +37,7 @@
                 var video = document.querySelector('video');
                 video.srcObject = stream;
                 tracks = stream.getTracks();
+                myStream = stream;
             })
             .catch(err => {
                 console.log('An error occurred: ' + err);
@@ -47,7 +45,6 @@
 
         // 상대 Peer객체들
         const remotePeers = [];
-        // { sessionId: asdasdasd, RemotePeer : RemotePeer(sessionId)}
 
         // remotePeer 객체 생성자
         function RemotePeer(from) {
@@ -89,52 +86,58 @@
         }
 
         // ontrack 이벤트 핸들러
-        const ontrackHandler = (event) => {
-            console.log("ontrack 트리거 : " + event);
+        const ontrackHandler = (event, sessionId) => {
+            //console.log("ontrack 트리거 : " + event);
             console.log("Added track: " + event.track.kind + ", " + event.track.id);
             if (event.streams && event.streams[0]) {
                 console.log("ontrack 시작 : " + event.streams[0]);
                 // 비디오 태그에 스트림 추가
-                const videoElementNumber = this.sessionId;
-                const videoElement = document.createElement('video');
-                videoElement.id = videoElementNumber;
-                videoElement.srcObject = event.streams[0];
-                videoElement.autoplay = true; // Added autoplay option
-                document.body.appendChild(videoElement);
+                const videoElementNumber = sessionId;
+                let videoElement = document.getElementById(videoElementNumber);
+                if (!videoElement) {
+                    videoElement = document.createElement('video');
+                    videoElement.id = videoElementNumber;
+                    videoElement.autoplay = true; // Added autoplay option
+                    videoElement.width = 320; // Set width to 320 pixels
+                    videoElement.height = 240; // Set height to 240 pixels
+                    videoElement.srcObject = event.streams[0];
+                    const remoteVideos = document.querySelector('#remoteVideos');
+                    remoteVideos.appendChild(videoElement); // Add videoElement to remoteVideos
+                }
             }
         };
 
         // candidate 생성
         const onicecandidateHandler = (event, sessionId, RTCPeer, remoteDescriptionReady, candidates) => {
-            console.log("!!! onicecandidateHandler !!!" + event);
+            //console.log("!!! onicecandidateHandler !!!" + event);
             if (event.candidate !== null) {
-                console.log("[생성]candidate: " + JSON.stringify(event.candidate));
+                //console.log("[생성]candidate: " + JSON.stringify(event.candidate));
 
                 // candidate 전송
                 sendMessage('candidate', mySessionId, sessionId, event.candidate);
 
-                // // remoteDescription이 설정되었는지 확인
-                // if (remoteDescriptionReady) {
-                //     // RTCPeerConnection 객체에 candidate 추가
-                //     RTCPeer.addIceCandidate(event.candidate)
-                //         .then(() => {
-                //             console.log("Candidate added: " + JSON.stringify(event.candidate));
-                //         })
-                //         .catch((error) => {
-                //             console.error("Error adding candidate: " + error);
-                //         });
-                // } else {
-                //     // remoteDescription이 설정되지 않았다면, pendingCandidates 배열에 candidate 추가
-                //     // 이후 remoteDescription이 설정되면 추가됨
-                //     candidates.push(event.candidate);
-                // }
+                // remoteDescription이 설정되었는지 확인
+                if (remoteDescriptionReady) {
+                    // RTCPeerConnection 객체에 candidate 추가
+                    RTCPeer.addIceCandidate(event.candidate)
+                        .then(() => {
+                            //console.log("Candidate added: " + JSON.stringify(event.candidate));
+                        })
+                        .catch((error) => {
+                            console.error("Error adding candidate: " + error);
+                        });
+                } else {
+                    // remoteDescription이 설정되지 않았다면, pendingCandidates 배열에 candidate 추가
+                    // 이후 remoteDescription이 설정되면 추가됨
+                    candidates.push(event.candidate);
+                }
             }
             else {
-                console.log('!!!candidate 생성 완료!!!');
+                //console.log('!!!candidate 생성 완료!!!');
             }
         };
 
-        // 1. Submit 버튼 클릭 시
+        // Submit 버튼 클릭 시
         function startChat(event) {
             // 기본 이벤트 제거 (없으면 페이지 새로고침됨)
             event.preventDefault();
@@ -175,16 +178,15 @@
             const data = JSON.parse(event.data);
             // 각 변수에 저장
             const { type, from, to, message } = data;
-            console.log("[받음]" + JSON.stringify(data));
+            console.log("[받음] type: " + type + " /from: " + from + " /to: " + to);
 
-
-            //type별 처리
             // 1.offer를 받았을 때
             if (type === "offer") {
                 // remotePeer객체 생성
                 const newPeer = new RemotePeer(from);
-                console.log("addTrack " + tracks[0]);
-                newPeer.RTCPeer.addTrack(tracks[0]);
+                tracks.forEach(track => {
+                    newPeer.RTCPeer.addTrack(track, myStream);
+                });
 
                 // offer 처리, answer 전송
                 newPeer.RTCPeer.setRemoteDescription(message)
@@ -192,7 +194,7 @@
                         return newPeer.RTCPeer.createAnswer();
                     })
                     .then(answer => {
-                        console.log('answer 생성 by offer');
+                        //console.log('answer 생성 by offer');
                         return newPeer.RTCPeer.setLocalDescription(answer);
                     })
                     .then(() => {
@@ -205,20 +207,15 @@
             else if (type === "answer") {
                 // remotePeer 객체 생성 또는 가져오기
                 let newPeer = remotePeers.find(peer => peer.sessionId === from);
-                // if (!remotePeer) { // 없으면 생성
-                //     remotePeer = new RemotePeer(from);
-                //     this.remotePeers[from] = remotePeer;
-                // }
 
-                //const remoteDesc = new RTCSessionDescription(message);
-                console.log(newPeer.sessionId + "에 answer 추가");
+                //console.log(newPeer.sessionId + "에 answer 추가");
                 newPeer.RTCPeer.setRemoteDescription(message)
                     .then(() => { // remoteDesc가 설정되면 지연된 candidate 추가
                         newPeer.remoteDescriptionReady = true;
-                        console.log(newPeer.sessionId + "에 remoteDesc 설정 완료");
+                        //console.log(newPeer.sessionId + "에 remoteDesc 설정 완료");
                         // remoteDesc가 설정되었으면 candidates에 있는 candidate 추가
                         newPeer.candidates.forEach(candidate => {
-                            console.log(newPeer.sessionId + "에 candidate 추가");
+                            //console.log(newPeer.sessionId + "에 candidate 추가");
                             newPeer.RTCPeer.addIceCandidate(candidate);
                         });
                         newPeer.candidates = []; // 추가한 후 비우기
@@ -231,10 +228,10 @@
                 let newPeer = remotePeers.find(peer => peer.sessionId === from);
                 if (newPeer) {
                     if (newPeer.remoteDescriptionReady) { // remoteDesc가 설정되었으면 바로 추가
-                        console.log(newPeer.sessionId + "에 candidate 추가");
+                        //console.log(newPeer.sessionId + "에 candidate 추가");
                         newPeer.RTCPeer.addIceCandidate(message);
                     } else { // remoteDesc가 설정되지 않았으면 pendingCandidates에 추가
-                        console.log(newPeer.sessionId + "에 candidate 추가 대기");
+                        //console.log(newPeer.sessionId + "에 candidate 추가 대기");
                         newPeer.candidates.push(message);
                     }
                 }
@@ -251,9 +248,11 @@
                 document.body.appendChild(paragraph);
 
                 // 해당 login의 사용자에 대한 RTCPeer 객체 생성 및 offer 전송
-                console.log('RTCpeer 객체 생성 및 offer 전송');
+                //console.log('RTCpeer 객체 생성 및 offer 전송');
                 const newPeer = new RemotePeer(from);
-                newPeer.RTCPeer.addTrack(tracks[0]);
+                tracks.forEach(track => {
+                    newPeer.RTCPeer.addTrack(track, myStream);
+                });
                 remotePeers.push(newPeer);
             }
 
@@ -264,6 +263,12 @@
                 let text = document.createTextNode(logoutmessage);
                 paragraph.appendChild(text);
                 document.body.appendChild(paragraph);
+
+                // 해당 사용자의 sessionId를 id로 하는 video 태그 삭제
+                let videoElement = document.getElementById(message.sessionId);
+                if (videoElement) {
+                    videoElement.remove();
+                }
             }
 
             // 6.joined를 받았을때
@@ -294,7 +299,7 @@
 
             // 메세지 전송
             socket.send(JSON.stringify(messageToSend));
-            console.log("[보냄]" + JSON.stringify(messageToSend));
+            console.log("[보냄] type: " + type + " /from: " + from + " /to: " + to);
 
             // (필요시)클라이언트측 콘솔 로그용
             if (consoleLog) {
@@ -315,6 +320,7 @@
         <input type="submit" value="Submit">
     </form>
     <video id='myVideo' autoplay controls width="320" height="240"></video>
+    <div id="remoteVideos"></div>
 </body>
 
 </html>
