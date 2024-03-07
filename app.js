@@ -102,7 +102,7 @@ wss.on('connection', (ws) => {
                 // 해당 room의 user수가 가득 찬 경우
                 if (existingRoom.users.length >= roomMax) {
                     // 에러 메세지 전송
-                    const errorMessage = { type: 'error', message: '요청하신 방이 가득 찼습니다.' };
+                    const errorMessage = { type: 'error', message: {errorType : 'full' , errorText : '요청하신 방이 가득 찼습니다.'} };
                     ws.send(JSON.stringify(errorMessage));
                     return; // ws.on('message') 핸들러 종료 (이후 함수 실행 안함)
                 }
@@ -156,6 +156,7 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         // ex6 logout)  { type: 'logout',  username: ws.username, sessionId: ws.sessionId } => to All
 
+        try { // 정상 종료시 (ws에 sessionId, room, username이 존재)
         logger.info('!CLOSE : ' + ws.sessionId);
         logger.info('EXIT Room : ' + ws.room.roomnumber);
         logger.info('EXIT User : ' + ws.username);
@@ -185,6 +186,10 @@ wss.on('connection', (ws) => {
                 rooms.splice(index, 1);
             }
         });
+
+        } catch (error) { // 비정상 종료시 (ws연결했으나 방이 가득 찼거나, room 생성에 실패하여 종료하는 등)
+            logger.error('미등록 사용자 연결 종료됨 : ' + error);
+        }
     });
 
     ws.on('error', () => {
