@@ -18,8 +18,8 @@ const wss = new WebSocket.Server({ server });
 
 // 100자 이상은 줄임표로 바꾸는 winston format
 const myFormat = winston.format.printf(({ level, message }) => {
-    if (message.length > 100) {
-        message = message.substring(0, 100) + '...';
+    if (message.length > 1000) {
+        message = message.substring(0, 1000) + '...';
     }
     return `${level}: ${message}`;
 });
