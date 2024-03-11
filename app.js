@@ -64,7 +64,7 @@ const roomMax = 5; // 방 1개당 최대 유저 수
 
 // 웹소켓 연결
 wss.on('connection', (ws) => {
-    logger.info('!NEW!');
+    logger.info('!NEW! (not logged in)');
 
     // sessionId 생성
     ws.sessionId = generateSessionId();
@@ -72,59 +72,70 @@ wss.on('connection', (ws) => {
     ws.room;
     ws.username;
 
-    ws.on('message', (receivedMessage) => {
-        //logger.info(`MESG : ${receivedMessage}`);
-        // {type, from, to, message} 형태로 메세지를 보내고 받음
-        // ex1 login)       { type: 'login',      from: '', to:'', message:{roomrequest: '1234',   username: 'John'} } => to All
-        // ex2 joined)      { type: 'joined',     from: '', to:'', message: 'ws.sessionId' } => to me (서버 -> 클라이언트만 발생)
-        // ex3 err)         { type: 'error',      from: '', to:'', message: 'error message' } => to me (서버 -> 클라이언트만 발생)
-        // ex4 offer)       { type: 'offer',      from: sessionId      to: '' message: 'WebRTC offer' } => to All
-        // ex5 answer)      { type: 'answer',     from: sessionId      to: 'ws.sessionId',  message: 'WebRTC answer' } => to sessionId (from offer)
-        // ex6 candidate)   { type: 'candidate',  from: sessionId      to: 'ws.sessionId',  message: 'WebRTC candidate' } => to sessionId (from answer)
+    ws.on('message', (message) => {
+
+        logger.info(`MESG : ${message}`);
+        // {type, from, to, data} 형태로 메세지를 보내고 받음
+        // ex1 login)       { type: 'login',      from: '', to:'',      data: { roomrequest: '1234',   username: 'John'} } => to All
+        // ex2 joined)      { type: 'joined',     from: '', to:'',      data: 'ws.sessionId' } => to me (서버 -> 클라이언트만 발생)
+        // ex3 err)         { type: 'error',      from: '', to:'',      data: 'error message' } => to me (서버 -> 클라이언트만 발생)
+        // ex4 offer)       { type: 'offer',      from: sessionId,      to: '',              data: 'WebRTC offer' } => to All
+        // ex5 answer)      { type: 'answer',     from: sessionId,      to: 'ws.sessionId',  data: 'WebRTC answer' } => to sessionId (from offer)
+        // ex6 candidate)   { type: 'candidate',  from: sessionId,      to: 'ws.sessionId',  data: 'WebRTC candidate' } => to sessionId (from answer)
 
         // 메세지 파싱
-        const data = JSON.parse(receivedMessage);
-        // type, roomrequest, username, to 변수 저장 (서버에서 from,sdp 내용 확인은 불필요함)
-        const { type, from, to, message } = data;
+        const parsedMessage = JSON.parse(message);
+
+        // message의 from(보낸사람)에 sessionId 저장
+        parsedMessage.from = ws.sessionId;
+
+        // type, roomrequest, username, to 변수 저장
+        //const { type, from, to, message } = data;
 
         // 1. login 메세지인 경우
-        if (type === 'login') {
+        if (parsedMessage.type === 'login') {
+            // ws에 username 정보 저장
+            ws.username = parsedMessage.data.username;
+            logger.info("!NEW USER! username : " + ws.username + " sessionId: " + ws.sessionId);
+
             // rooms 리스트에서 roomnumber==roomrequest인 room을 찾음
             // 없으면 undefined, 있으면 해당 room을 반환
-            const existingRoom = rooms.find((room) => room.roomnumber === message.roomrequest);
-
-            // ws에 username, room 정보 저장
-            ws.username = message.username;
-            logger.info("username : " + ws.username + " sessionId: " + ws.sessionId);
+            const existingRoom = rooms.find((room) => room.roomnumber === parsedMessage.data.roomrequest);
 
             // room이 존재하는 경우
             if (existingRoom) {
+                logger.info("Room 찾음 : " + existingRoom.roomnumber);
                 // 해당 room의 user수가 가득 찬 경우
                 if (existingRoom.users.length >= roomMax) {
+                    logger.info("Room 가득 참 : " + existingRoom.roomnumber);
                     // 에러 메세지 전송
-                    const errorMessage = { type: 'error', message: {errorType : 'full' , errorText : '요청하신 방이 가득 찼습니다.'} };
-                    ws.send(JSON.stringify(errorMessage));
+                    const errorMessage = {
+                        type: 'error',
+                        message: {
+                            errorType: 'full',
+                            errorText: '요청하신 방이 가득 찼습니다.'
+                        }
+                    };
+
+                    ws.send(errorMessage);
                     return; // ws.on('message') 핸들러 종료 (이후 함수 실행 안함)
                 }
-                else {
                     // 해당 ws객체에 찾은 room 참조
                     ws.room = existingRoom;
 
                     // 해당 room의 users에 user(ws)를 추가
                     existingRoom.users.push(ws);
-                    logger.info("Room에 추가 : " + existingRoom.roomnumber);
-
-                }
             }
 
             // room이 존재하지 않는 경우
             else {
+                logger.info("Room 생성 : " + parsedMessage.data.roomrequest);
                 // 해당 room을 생성하고 해당 room의 users에 user를 추가
                 const newRoom = {
-                    roomnumber: message.roomrequest,
-                    users: [ws],
+                    roomnumber: parsedMessage.data.roomrequest,
+                    users: []
                 };
-                logger.info("Room 생성 : " + newRoom.roomnumber);
+                newRoom.users.push(ws);
                 rooms.push(newRoom);
 
                 // 해당 ws객체에 새로 만든 room 참조
@@ -132,60 +143,53 @@ wss.on('connection', (ws) => {
             }
 
             // 사용자에게 접속 성공 메세지 전송 (자신의 세션id 전송)
-            const joinedMessage = { type: 'joined', message: ws.sessionId };
-            logger.info("SEND to : " + ws.room.roomnumber + " / MSG : " + JSON.stringify(joinedMessage));
+            const joinedMessage = { 
+                type: 'joined',
+                data: ws.sessionId
+            };
+            logger.info("SEND : " + JSON.stringify(joinedMessage));
             ws.send(JSON.stringify(joinedMessage));
 
-            // 전송할 메세지에 보낸 사람 추가
-            data.from = ws.sessionId;
-
             //해당 room에 존재하는 본인 제외 모든 user에게 login 메세지 전송
-            sendMessageToAll(ws, data);
+            sendMessageToAll(ws, parsedMessage);
         }
-        else if (type === 'offer') { // 모두 뿌림
-            sendMessageToAll(ws, data);
-        }
-        else if (type === 'answer' || type === 'candidate') { // 특정 user에게만 전송
-            sendMessageToOne(ws, data);
+        else if (parsedMessage.type === 'offer' || parsedMessage.type === 'answer' || parsedMessage.type === 'candidate') { // 특정 user에게만 전송
+            sendMessageToOne(ws, parsedMessage);
         }
         else { // type이 정의되지 않은 경우
-            log.error('Unknown message type : ' + data);
+            logger.error('Unknown message type : ' + parsedMessage);
         }
     });
 
     ws.on('close', () => {
-        // ex6 logout)  { type: 'logout',  username: ws.username, sessionId: ws.sessionId } => to All
+        // ex6 logout)  { type: 'logout',  data: {username: ws.username, sessionId: ws.sessionId} } => to All
 
         try { // 정상 종료시 (ws에 sessionId, room, username이 존재)
-        logger.info('!CLOSE : ' + ws.sessionId);
-        logger.info('EXIT Room : ' + ws.room.roomnumber);
-        logger.info('EXIT User : ' + ws.username);
+            logger.info('!CLOSE : ' + ws.sessionId);
 
-        const logoutMessage = { type: 'logout', message: {username: ws.username, sessionId: ws.sessionId} };
-        sendMessageToAll(ws, logoutMessage);
+            const logoutMessage = { type: 'logout', data: { username: ws.username, sessionId: ws.sessionId } };
+            sendMessageToAll(ws, logoutMessage);
 
-        // 방 정리
-        if (ws.room) {
-            let exitedUser;
-            // 연결 종료된 사용자의 index를 찾음
-            const exitedUserIndex = ws.room.users.findIndex((user) => user.sessionId === ws.sessionId);
-            // 해당 room의 users에서 해당 user를 삭제
-            if (exitedUserIndex > -1) {
-                exitedUser = ws.room.users.splice(exitedUserIndex, 1)[0];
+            // 방 정리
+            if (ws.room) {
+                let exitedUser;
+                // 연결 종료된 사용자의 room에서 index를 찾음
+                const exitedUserIndex = ws.room.users.findIndex((user) => user.sessionId === ws.sessionId);
+                // 해당 room의 users에서 해당 user를 삭제
+                if (exitedUserIndex > -1) {
+                    exitedUser = ws.room.users.splice(exitedUserIndex, 1)[0];
+                }
+                // 사용이 끝난 세션 Id 제거
+                expireSessionId(exitedUser.sessionId)
             }
-            // 사용이 끝난 세션 Id 제거
-            expireSessionId(exitedUser.sessionId)
-            // 해당 user 변수 삭제
-            exitedUser = null;
-        }
 
-        // 모든 rooms 확인 후 해당 room의 user수가 0명인 경우 해당 room을 삭제 
-        rooms.forEach((room, index) => {
-            if (room.users.length === 0) {
-                logger.info('Removing room : ' + room.roomnumber);
-                rooms.splice(index, 1);
-            }
-        });
+            // 모든 rooms 확인 후 해당 room의 user수가 0명인 경우 해당 room을 삭제 
+            rooms.forEach((room, index) => {
+                if (room.users.length === 0) {
+                    logger.info('Removing room : ' + room.roomnumber);
+                    rooms.splice(index, 1);
+                }
+            });
 
         } catch (error) { // 비정상 종료시 (ws연결했으나 방이 가득 찼거나, room 생성에 실패하여 종료하는 등)
             logger.error('미등록 사용자 연결 종료됨 : ' + error);
@@ -194,8 +198,8 @@ wss.on('connection', (ws) => {
 
     ws.on('error', () => {
         console.error(error);
-        const errorMessage = { type: 'error', message: error };
-        ws.send(JSON.stringify(errorMessage));
+        const errorMessage = { type: 'error', data: error };
+        ws.send(errorMessage);
     });
 
 });
@@ -241,13 +245,14 @@ function expireSessionId(SessionId) {
 }
 
 // 특정 room에 존재하는 모든 user에게 메세지 전송
-function sendMessageToAll(sender, message) {
-    const targetRoom = rooms.find(room => room.roomnumber === sender.room.roomnumber);
+// !sender는 room 확인용으로만 사용!
+function sendMessageToAll(sender, message) { 
+    logger.info('sendMessageToAll : ' + JSON.stringify(message));
+    const targetRoom = sender.room;
     if (targetRoom) {
-        targetRoom.users.forEach(user => {
+        targetRoom.users.forEach(user => { // 모든 user중
             if (user.sessionId !== sender.sessionId) { // 보내는 사람 제외
-                // 메세지 그대로 전송
-                logger.info("SEND : " + JSON.stringify(message));
+                // 메세지 전송
                 user.send(JSON.stringify(message));
             }
         });
@@ -258,13 +263,14 @@ function sendMessageToAll(sender, message) {
 }
 
 // 특정 room에 존재하는 특정 user에게 메세지 전송
-function sendMessageToOne(sender, message) {
-    const targetRoom = rooms.find(room => room.roomnumber === sender.room.roomnumber);
+// !sender는 room 확인용으로만 사용!
+function sendMessageToOne(sender, message) { 
+    logger.info('sendMessageToOne : ' + JSON.stringify(message));
+    const targetRoom = sender.room;
     if (targetRoom) {
-        targetRoom.users.forEach(user => {
+        targetRoom.users.forEach(user => { // 모든 user중
             if (user.sessionId === message.to) { // 특정 대상에게만 전송
-                // 메세지 그대로 전송
-                logger.info("SEND : " + JSON.stringify(message));
+                // 메세지 전송
                 user.send(JSON.stringify(message));
             }
         });
