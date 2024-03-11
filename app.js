@@ -8,10 +8,15 @@ const crypto = require('crypto');
 const favicon = require('serve-favicon');
 
 const app = express();
-app.use(favicon(__dirname + '\\favicon.ico'));
+
+// script 폴더 안의 모든 파일에 대한 응답
+app.use('/script', express.static(path.join(__dirname, 'script')));
+app.use('/views', express.static(path.join(__dirname, 'views')));
+app.use(favicon(__dirname + '/favicon.ico'));
+
 const options = {
-    cert: fs.readFileSync('SSL\\certificate.crt', 'utf8'),
-    key: fs.readFileSync('SSL\\privatekey.pem', 'utf8')
+    cert: fs.readFileSync('SSL/certificate.crt', 'utf8'),
+    key: fs.readFileSync('SSL/privatekey.pem', 'utf8')
 };
 const server = https.createServer(options, app);
 const wss = new WebSocket.Server({ server });
@@ -120,11 +125,11 @@ wss.on('connection', (ws) => {
                     ws.send(errorMessage);
                     return; // ws.on('message') 핸들러 종료 (이후 함수 실행 안함)
                 }
-                    // 해당 ws객체에 찾은 room 참조
-                    ws.room = existingRoom;
+                // 해당 ws객체에 찾은 room 참조
+                ws.room = existingRoom;
 
-                    // 해당 room의 users에 user(ws)를 추가
-                    existingRoom.users.push(ws);
+                // 해당 room의 users에 user(ws)를 추가
+                existingRoom.users.push(ws);
             }
 
             // room이 존재하지 않는 경우
@@ -143,7 +148,7 @@ wss.on('connection', (ws) => {
             }
 
             // 사용자에게 접속 성공 메세지 전송 (자신의 세션id 전송)
-            const joinedMessage = { 
+            const joinedMessage = {
                 type: 'joined',
                 data: ws.sessionId
             };
@@ -155,6 +160,21 @@ wss.on('connection', (ws) => {
         }
         else if (parsedMessage.type === 'offer' || parsedMessage.type === 'answer' || parsedMessage.type === 'candidate') { // 특정 user에게만 전송
             sendMessageToOne(ws, parsedMessage);
+        }
+        else if (parsedMessage.type === 'randomCheck') {
+            const randomroom = rooms.find(room => room.roomnumber === parsedMessage.data)
+            
+            const randomCheckMessage = {
+                type: 'randomCheckResult',
+                data: {
+                    result: randomroom ? 'ok' : 'fail', // 이항연산자
+                    roomrequest: parsedMessage.data
+                }
+            }
+
+            // 해당 ws객체는 room,username,sessionId가 존재하지 않으므로 send 사용
+            ws.send(JSON.stringify(randomCheckMessage));
+
         }
         else { // type이 정의되지 않은 경우
             logger.error('Unknown message type : ' + parsedMessage);
@@ -246,7 +266,7 @@ function expireSessionId(SessionId) {
 
 // 특정 room에 존재하는 모든 user에게 메세지 전송
 // !sender는 room 확인용으로만 사용!
-function sendMessageToAll(sender, message) { 
+function sendMessageToAll(sender, message) {
     logger.info('sendMessageToAll : ' + JSON.stringify(message));
     const targetRoom = sender.room;
     if (targetRoom) {
@@ -264,7 +284,7 @@ function sendMessageToAll(sender, message) {
 
 // 특정 room에 존재하는 특정 user에게 메세지 전송
 // !sender는 room 확인용으로만 사용!
-function sendMessageToOne(sender, message) { 
+function sendMessageToOne(sender, message) {
     logger.info('sendMessageToOne : ' + JSON.stringify(message));
     const targetRoom = sender.room;
     if (targetRoom) {

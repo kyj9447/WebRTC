@@ -1,0 +1,13 @@
+body {
+    align-items: center;
+}
+
+#loginPanel{
+    margin: 0 auto;
+    align-items: center;
+    z-index: 1;
+}
+
+.video{
+    border: 5px solid #994e1f;
+};
