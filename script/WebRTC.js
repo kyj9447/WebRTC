@@ -18,7 +18,11 @@ const configuration = {
     ]
 }
 
-export let socket = null;
+//export let socket = null;
+//export var socket = new WebSocket("wss://kyj9447.iptime.org:3000")
+var socket = new WebSocket("wss://kyj9447.iptime.org:3000")
+// 이벤트 핸들러 설정
+socket.onmessage = onmessageHandler;
 
 // 내 media track
 var myTracks = [];
@@ -65,7 +69,14 @@ function RemotePeer(from) {
     this.RTCPeer.onnegotiationneeded = () => onnegotiationneededHandler(this);
     this.RTCPeer.oniceconnectionstatechange = () => oniceconnectionstatechangeHandler(this);
     this.RTCPeer.ontrack = (event) => ontrackHandler(event, this);
-    this.RTCPeer.onicecandidate = (event) => onicecandidateHandler(event, this);
+    this.RTCPeer.onicecandidate = (event) => {
+        onicecandidateHandler(event, this);
+        // if (this.RTCPeer.iceConnectionState === 'connected' || this.RTCPeer.iceConnectionState === 'completed') {
+        //     // datachannel 생성
+        //     this.dataChannel = this.RTCPeer.createDataChannel('dataChannel');
+        //     this.dataChannel.onmessage = onChatHandler; // onmessage 이벤트 핸들러 설정
+        // }
+    };
 }
 
 // 연결 내용 변경 감지시
@@ -129,15 +140,9 @@ function startChat(event) {
     event.preventDefault();
 
     // 웹소켓 연결
-    socket = new WebSocket("wss://kyj9447.iptime.org:3000")
-    // 이벤트 핸들러 설정
-    socket.onopen = onopenHandler;
-    socket.onmessage = onmessageHandler;
+    //socket = new WebSocket("wss://kyj9447.iptime.org:3000")
 
-}
-
-// 웹소켓 연결이 완료된 후 실행하는 핸들러
-function onopenHandler() {
+    // onopen핸들러 그냥 실행 (ws 전역으로 이미 연결되어있음)
     // 입력값 가져오기
     myRoomrequest = document.getElementById('roomrequest').value;
     myUsername = document.getElementById('username').value;
@@ -149,8 +154,8 @@ function onopenHandler() {
     };
 
     // 로그인 메세지 전송
-    sendMessage('login', '', '', data, "로그인 메세지 전송");
-};
+    sendMessage('login', '', '', data);
+}
 
 // 소켓이 메시지를 받았을 때 핸들러 ---------------------------------------------------------
 function onmessageHandler(event) {
@@ -250,17 +255,16 @@ function onmessageHandler(event) {
         mySessionId = parsedMessage.data;
 
         // 화면에 html태그 방 번호, 사용자 이름 추가
-        let paragraph = document.createElement("p");
-        let text = document.createTextNode("사용자 이름 : " + myUsername + " / 방 번호 : " + myRoomrequest);
+        let paragraph = document.getElementById("roomNumber")
+        let text = document.createTextNode("방 번호 : " + myRoomrequest);
         paragraph.appendChild(text);
-        document.body.appendChild(paragraph);
 
-        // 세션 아이디 출력
-        let notice = "내 sessionId : " + mySessionId;
-        paragraph = document.createElement("p");
-        text = document.createTextNode(notice);
-        paragraph.appendChild(text);
-        document.body.appendChild(paragraph);
+        // // 세션 아이디 출력
+        // let notice = "내 sessionId : " + mySessionId;
+        // paragraph = document.createElement("p");
+        // text = document.createTextNode(notice);
+        // paragraph.appendChild(text);
+        // document.body.appendChild(paragraph);
 
         // 입력 폼 삭제
         document.getElementById('form').remove();
@@ -274,7 +278,7 @@ function onmessageHandler(event) {
             document.getElementById('randomButton').disabled = true;
             document.getElementById('roomrequest').value = parsedMessage.data.roomrequest;
         }
-        else{ // 결과가 ok이 아니면 (=fail)
+        else { // 결과가 ok이 아니면 (=fail)
             // ok가 올때까지 재전송
             randomRoom();
         }
@@ -341,4 +345,76 @@ function deleteRemotePeer(remotePeer) {
     remotePeer.sessionId = null;
     remotePeer.inboundStream = null;
     remotePeer = null;
+}
+
+//================================================================================================
+// UserInterface.js
+// html에서 접근할 수 있도록 전역변수로 선언
+window.randomRoom = randomRoom;
+function randomRoom(event) {
+    // UUID 생성
+    const uuidValue = crypto.randomUUID();
+
+    // 메세지 작성 후 서버로 전송
+    const message = {
+        type: 'randomCheck',
+        data: uuidValue
+    };
+
+    socket.send(JSON.stringify(message));
+}
+
+window.displayRoomNumber = displayRoomNumber;
+function displayRoomNumber() {
+    const displayButton = document.getElementById('displayButton');
+    displayButton.innerText = displayButton.innerText === '표시' ? '숨기기' : '표시';
+
+    const roomNumber = document.getElementById('roomNumber');
+    roomNumber.style.display = roomNumber.style.display === 'block' ? 'none' : 'block';
+
+    const shareButton = document.getElementById('shareButton');
+    shareButton.style.display = shareButton.style.display === 'block' ? 'none' : 'block';
+}
+
+window.shareRoomNumber = shareRoomNumber;
+function shareRoomNumber() {
+    if (myRoomrequest !== '') {
+        navigator.share({
+            title: "WebRTC 방 번호 공유하기",
+            text: myRoomrequest,
+        })
+    }
+}
+
+window.sendChat = sendChat;
+function sendChat(event) {
+    event.preventDefault();
+
+    let chatInput = document.getElementById('chatInput').value;
+    let sender = myUsername;
+    let chatMessage = {
+        sender: sender,
+        chatInput: chatInput
+    };
+
+    remotePeers.forEach(remotePeer => {
+        if (remotePeer.dataChannel.readyState === 'open') {
+            console.log('Data channel is open');
+        } else {
+            console.log('Data channel is not open');
+        }
+        remotePeer.dataChannel.send(JSON.stringify(chatMessage));
+    });
+}
+
+function onChatHandler(event) {
+    let chatMessage = JSON.parse(event.data);
+    let sender = chatMessage.sender;
+    let chatInput = chatMessage.chatInput;
+
+    let paragraph = document.createElement("p");
+    let text = document.createTextNode(sender + " : " + chatInput);
+    paragraph.appendChild(text);
+    document.body.appendChild(paragraph);
+    
 }

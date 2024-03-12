@@ -167,12 +167,14 @@ wss.on('connection', (ws) => {
             const randomCheckMessage = {
                 type: 'randomCheckResult',
                 data: {
-                    result: randomroom ? 'ok' : 'fail', // 이항연산자
+                    // randomroom이 이미 존재하면 fail, 존재하지 않으면 ok
+                    result: randomroom ? 'fail' : 'ok', // 3항연산자
                     roomrequest: parsedMessage.data
                 }
             }
 
-            // 해당 ws객체는 room,username,sessionId가 존재하지 않으므로 send 사용
+            // 해당 ws객체는 room,username이 존재하지 않으므로 send 사용
+            logger.info("SEND : " + JSON.stringify(randomCheckMessage));
             ws.send(JSON.stringify(randomCheckMessage));
 
         }
