@@ -3,12 +3,12 @@ const configuration = {
         {
             'urls': 'stun:stun.l.google.com:19302'
         }
-        ,
-        {
-            'urls': 'turn:kyj9447.iptime.org:50001',
-            'username': 'test',
-            'credential': 'test'
-        }
+        // ,
+        // {
+        //     'urls': 'turn:kyj9447.iptime.org:50001',
+        //     'username': 'test',
+        //     'credential': 'test'
+        // }
         // ,
         // {
         //     'urls': 'turn:choiyh.synology.me:50001',
@@ -57,10 +57,19 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: true })
 // 상대 Peer객체들
 const remotePeers = [];
 
+// 상대 dataChannel 객체들
+const remoteDataChannels = [];
+
 // remotePeer 객체 생성자
 function RemotePeer(from) {
     // RTCPeer 객체 생성
     this.RTCPeer = new RTCPeerConnection(configuration);
+    // dataChannel 생성
+    this.dataChannel = this.RTCPeer.createDataChannel('chat');
+    this.dataChannel.onopen = () => console.log('Data channel is open!');
+    this.dataChannel.onclose = () => console.log('Data channel is closed!');
+    this.dataChannel.onmessage = (event) => onChatHandler(event);
+    remoteDataChannels.push(this.dataChannel);
     // offer, answer 주고받을때 같이 받은 sessionId
     this.sessionId = from;
     // inboundStream
@@ -69,14 +78,14 @@ function RemotePeer(from) {
     this.RTCPeer.onnegotiationneeded = () => onnegotiationneededHandler(this);
     this.RTCPeer.oniceconnectionstatechange = () => oniceconnectionstatechangeHandler(this);
     this.RTCPeer.ontrack = (event) => ontrackHandler(event, this);
-    this.RTCPeer.onicecandidate = (event) => {
-        onicecandidateHandler(event, this);
-        // if (this.RTCPeer.iceConnectionState === 'connected' || this.RTCPeer.iceConnectionState === 'completed') {
-        //     // datachannel 생성
-        //     this.dataChannel = this.RTCPeer.createDataChannel('dataChannel');
-        //     this.dataChannel.onmessage = onChatHandler; // onmessage 이벤트 핸들러 설정
-        // }
-    };
+    this.RTCPeer.onicecandidate = (event) => onicecandidateHandler(event, this);
+    this.RTCPeer.ondatachannel = (event) => {
+        console.log('Data channel is created!');
+        event.channel.onopen = () => console.log('Data channel is open!');
+        event.channel.onclose = () => console.log('Data channel is closed!');
+        event.channel.onmessage = (event) => onChatHandler(event);
+        //remoteDataChannels.push(event.channel);
+    }
 }
 
 // 연결 내용 변경 감지시
@@ -351,7 +360,7 @@ function deleteRemotePeer(remotePeer) {
 // UserInterface.js
 // html에서 접근할 수 있도록 전역변수로 선언
 window.randomRoom = randomRoom;
-function randomRoom(event) {
+function randomRoom() {
     // UUID 생성
     const uuidValue = crypto.randomUUID();
 
@@ -397,18 +406,26 @@ function sendChat(event) {
         chatInput: chatInput
     };
 
-    remotePeers.forEach(remotePeer => {
-        if (remotePeer.dataChannel.readyState === 'open') {
-            console.log('Data channel is open');
+    let paragraph = document.createElement("p");
+    paragraph.style.color = "blue"; // 내가 보낸 chat
+    let text = document.createTextNode(sender + " : " + chatInput);
+    paragraph.appendChild(text);
+    document.body.appendChild(paragraph);
+
+    remoteDataChannels.forEach(dataChannel => {
+        if (dataChannel.readyState === 'open') {
+            console.log('Data channel is open!');
         } else {
-            console.log('Data channel is not open');
+            console.log('Data channel is not open!');
         }
-        remotePeer.dataChannel.send(JSON.stringify(chatMessage));
+        console.log(JSON.stringify(chatMessage));
+        dataChannel.send(JSON.stringify(chatMessage));
     });
 }
 
 function onChatHandler(event) {
     let chatMessage = JSON.parse(event.data);
+    console.log(chatMessage);
     let sender = chatMessage.sender;
     let chatInput = chatMessage.chatInput;
 

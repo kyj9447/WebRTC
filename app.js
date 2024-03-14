@@ -218,7 +218,7 @@ wss.on('connection', (ws) => {
         }
     });
 
-    ws.on('error', () => {
+    ws.on('error', (error) => {
         console.error(error);
         const errorMessage = { type: 'error', data: error };
         ws.send(errorMessage);
