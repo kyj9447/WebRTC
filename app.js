@@ -10,28 +10,47 @@ const favicon = require('serve-favicon');
 
 const app = express();
 
-// // greenlock-express를 사용하여 SSL 인증서 적용
-// require('greenlock-express').init({
-//     packageRoot: __dirname,
-//     configDir: './greenlock.d',
-//     maintainerEmail: 'kyj9447@gmail.com',
-//   })
-//     .serve(app);
-
-// script 폴더 안의 모든 파일에 대한 응답
+// script,views 폴더 안의 모든 파일에 대한 응답
 app.use('/script', express.static(path.join(__dirname, 'script')));
 app.use('/views', express.static(path.join(__dirname, 'views')));
 app.use(favicon(__dirname + '/favicon.ico'));
+
+// HTTP 요청에 대한 응답
+app.use(function (req, res, next) {
+    if (!req.secure) {
+        logger.info('!!!Redirecting to https!!!');
+        res.redirect(`https://${req.url}`);
+    } else {
+        next();
+    }
+});
 
 const options = {
     cert: fs.readFileSync('SSL/certificate.crt', 'utf8'),
     key: fs.readFileSync('SSL/privatekey.pem', 'utf8')
 };
-const httpsserver = https.createServer(options, app);
-const wss = new WebSocket.Server({ server: httpsserver });
+
+// // HTTP 서버 생성
+// const httpServer = http.createServer((request, response) => {
+//     logger.info('HTTP requested');
+//     // HTTPS 서버로 리다이렉트
+//     response.writeHead(301, { 'Location': 'https://' + request.headers.host + request.url });
+//     response.end();
+// });
+
+// HTTPS 서버 생성
+const httpsServer = https.createServer(options, app);
+
+// 웹소켓 서버 생성
+const wss = new WebSocket.Server({ server: httpsServer });
+
+// // 서버 리스닝 (80 포트)
+// httpServer.listen(80, () => {
+//     logger.info('HTTP server is listening on port 80');
+// });
 
 // 서버 리스닝 (443)
-httpsserver.listen(443, () => {
+httpsServer.listen(443, () => {
     logger.info('https server is listening on port 443');
 });
 
@@ -233,7 +252,7 @@ wss.on('connection', (ws) => {
     });
 
     ws.on('error', (error) => {
-        console.error(error);
+        logger.error(error);
         const errorMessage = { type: 'error', data: error };
         ws.send(errorMessage);
     });
