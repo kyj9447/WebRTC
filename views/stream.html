@@ -13,7 +13,8 @@
 <body>
     <div id="loginPanel">
         <div>
-            <video id='myVideo' class="video" autoplay controls muted width="320" height="240"></video><br>
+            <video id='myVideo' class="video" autoplay controls autopictureinpicture width="320" height="240"></video>
+            <br>
             <form onsubmit="startChat(event)" id="form">
                 <input type="text" id="roomrequest" name="roomrequest" placeholder="방 번호" style="width: 280;">
                 <input type="button" id="randomButton" onclick="randomRoom()" value="R" style="width: 40;"><br>
@@ -26,7 +27,6 @@
     </div>
 
     <div id="chat">
-        <div id="myVideos"></div>
         <div id="remoteVideos"></div>
         <div id="sidebar">
             <div id="roomInfo">

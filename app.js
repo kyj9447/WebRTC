@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const https = require('https');
 const WebSocket = require('ws');
 const fs = require('fs');
@@ -9,6 +10,14 @@ const favicon = require('serve-favicon');
 
 const app = express();
 
+// // greenlock-express를 사용하여 SSL 인증서 적용
+// require('greenlock-express').init({
+//     packageRoot: __dirname,
+//     configDir: './greenlock.d',
+//     maintainerEmail: 'kyj9447@gmail.com',
+//   })
+//     .serve(app);
+
 // script 폴더 안의 모든 파일에 대한 응답
 app.use('/script', express.static(path.join(__dirname, 'script')));
 app.use('/views', express.static(path.join(__dirname, 'views')));
@@ -18,8 +27,13 @@ const options = {
     cert: fs.readFileSync('SSL/certificate.crt', 'utf8'),
     key: fs.readFileSync('SSL/privatekey.pem', 'utf8')
 };
-const server = https.createServer(options, app);
-const wss = new WebSocket.Server({ server });
+const httpsserver = https.createServer(options, app);
+const wss = new WebSocket.Server({ server: httpsserver });
+
+// 서버 리스닝 (443)
+httpsserver.listen(443, () => {
+    logger.info('https server is listening on port 443');
+});
 
 // 100자 이상은 줄임표로 바꾸는 winston format
 const myFormat = winston.format.printf(({ level, message }) => {
@@ -234,11 +248,6 @@ app.get('/', (req, res) => {
 // favicon.ico 요청에 대한 응답
 app.get('/favicon.ico', (req, res) => {
     res.sendFile(__dirname + '/favicon.ico');
-});
-
-// 서버 리스닝
-server.listen(3000, () => {
-    logger.info('WebSocket server is listening on port 3000');
 });
 
 // 세션 Id 저장 객체

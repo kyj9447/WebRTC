@@ -3,12 +3,12 @@ const configuration = {
         {
             'urls': 'stun:stun.l.google.com:19302'
         }
-        // ,
-        // {
-        //     'urls': 'turn:kyj9447.iptime.org:50001',
-        //     'username': 'test',
-        //     'credential': 'test'
-        // }
+        ,
+        {
+            'urls': 'turn:kyj9447.iptime.org:50001',
+            'username': 'test',
+            'credential': 'test'
+        }
         // ,
         // {
         //     'urls': 'turn:choiyh.synology.me:50001',
@@ -20,7 +20,7 @@ const configuration = {
 
 //export let socket = null;
 //export var socket = new WebSocket("wss://kyj9447.iptime.org:3000")
-var socket = new WebSocket("wss://kyj9447.iptime.org:3000")
+var socket = new WebSocket("wss://kyj9447.iptime.org:443")
 // 이벤트 핸들러 설정
 socket.onmessage = onmessageHandler;
 
@@ -42,7 +42,7 @@ var myUsername = '';
 // 미디어 스트림 가져오기
 navigator.mediaDevices.getUserMedia({ video: true, audio: true })
     .then(stream => {
-        const video = document.querySelector('video');
+        const video = document.getElementById('myVideo');
         video.srcObject = stream;
         myTracks = stream.getTracks();
         myStream = stream;
@@ -69,7 +69,7 @@ function RemotePeer(from) {
     this.dataChannel.onopen = () => console.log('Data channel is open!');
     this.dataChannel.onclose = () => console.log('Data channel is closed!');
     this.dataChannel.onmessage = (event) => onChatHandler(event);
-    remoteDataChannels.push(this.dataChannel);
+    //remoteDataChannels.push(this.dataChannel);
     // offer, answer 주고받을때 같이 받은 sessionId
     this.sessionId = from;
     // inboundStream
@@ -81,10 +81,10 @@ function RemotePeer(from) {
     this.RTCPeer.onicecandidate = (event) => onicecandidateHandler(event, this);
     this.RTCPeer.ondatachannel = (event) => {
         console.log('Data channel is created!');
-        event.channel.onopen = () => console.log('Data channel is open!');
-        event.channel.onclose = () => console.log('Data channel is closed!');
-        event.channel.onmessage = (event) => onChatHandler(event);
-        //remoteDataChannels.push(event.channel);
+        //event.channel.onopen = () => console.log('Data channel is open!');
+        //event.channel.onclose = () => console.log('Data channel is closed!');
+        //event.channel.onmessage = (event) => onChatHandler(event);
+        remoteDataChannels.push(event.channel);
     }
 }
 
@@ -391,7 +391,7 @@ function shareRoomNumber() {
         navigator.share({
             title: "WebRTC 방 번호 공유하기",
             text: myRoomrequest,
-        })
+        });
     }
 }
 
@@ -433,5 +433,20 @@ function onChatHandler(event) {
     let text = document.createTextNode(sender + " : " + chatInput);
     paragraph.appendChild(text);
     document.body.appendChild(paragraph);
-    
 }
+
+// // [TEST] 화면 이동시 Picture-in-Picture 모드로 전환 [TEST]
+// document.addEventListener('visibilitychange', async () => {
+//     const video = document.getElementById('myVideo');
+//     if (document.visibilityState === 'hidden' && document.pictureInPictureEnabled) {
+//         try {
+//             video.requestPictureInPicture();
+//             console.log('Entered Picture-in-Picture mode');
+//         } catch (error) {
+//             console.error('Error entering Picture-in-Picture mode:', error);
+//         }
+//     }
+//     else if(document.pictureInPictureElement){
+//         document.exitPictureInPicture();
+//     }
+// });
