@@ -3,8 +3,23 @@
 <meta charset="UTF-8">
 
 <head>
-    <title>WebSocket Test Sender</title>
+    <title>WebRTC Chat</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="description" content="WebRTC Chat">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!--웹 RTC-->
     <script src="/script/WebRTC.js"></script>
+
+    <!--서비스 워커 등록-->
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker.register("/script/ServiceWorker.js");
+            });
+        }
+    </script>
     <!-- <script type="module" src="/script/UserInterface.js"></script> -->
     <link rel="stylesheet" href="/views/stream-desktop.css" media="(min-width: 768px)" />
     <link rel="stylesheet" href="/views/stream-mobile.css" media="(max-width: 767px)" />

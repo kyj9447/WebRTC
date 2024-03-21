@@ -1,0 +1,46 @@
+{
+    "name": "Web RTC Chat App",
+    "short_name": "RTC Chat",
+    "description": "A simple chat app using Web RTC",
+    "scope": ".",
+    "start_url": "./",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#ffffff",
+    "theme_color": "#000000",
+    "icons": [
+        {
+            "src": "asset/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "새 창",
+            "short_name": "새 창",
+            "description": "새 창 열기",
+            "url": "./",
+            "icons": [
+                {
+                    "src": "asset/icon-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        },
+        {
+            "name": "PIP 모드",
+            "short_name": "PIP",
+            "description": "PIP 모드로 전환",
+            "url": "./",
+            "icons": [
+                {
+                    "src": "asset/icon-512.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        }
+    ]
+}

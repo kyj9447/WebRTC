@@ -9,12 +9,6 @@ const configuration = {
             'username': 'test',
             'credential': 'test'
         }
-        // ,
-        // {
-        //     'urls': 'turn:choiyh.synology.me:50001',
-        //     'username': 'test',
-        //     'credential': 'test'
-        // }
     ]
 }
 
@@ -81,9 +75,6 @@ function RemotePeer(from) {
     this.RTCPeer.onicecandidate = (event) => onicecandidateHandler(event, this);
     this.RTCPeer.ondatachannel = (event) => {
         console.log('Data channel is created!');
-        //event.channel.onopen = () => console.log('Data channel is open!');
-        //event.channel.onclose = () => console.log('Data channel is closed!');
-        //event.channel.onmessage = (event) => onChatHandler(event);
         remoteDataChannels.push(event.channel);
     }
 }
@@ -118,7 +109,6 @@ const ontrackHandler = (event, remotePeer) => {
         newVideo(remotePeer.sessionId, event.streams[0]);
     }
     else {
-
         if (remotePeer.inboundStream === null) {
             remotePeer.inboundStream = new MediaStream();
         }
@@ -147,9 +137,6 @@ window.startChat = startChat;
 function startChat(event) {
     // 기본 이벤트 제거 (없으면 페이지 새로고침됨)
     event.preventDefault();
-
-    // 웹소켓 연결
-    //socket = new WebSocket("wss://kyj9447.iptime.org:3000")
 
     // onopen핸들러 그냥 실행 (ws 전역으로 이미 연결되어있음)
     // 입력값 가져오기
@@ -267,13 +254,6 @@ function onmessageHandler(event) {
         let paragraph = document.getElementById("roomNumber")
         let text = document.createTextNode("방 번호 : " + myRoomrequest);
         paragraph.appendChild(text);
-
-        // // 세션 아이디 출력
-        // let notice = "내 sessionId : " + mySessionId;
-        // paragraph = document.createElement("p");
-        // text = document.createTextNode(notice);
-        // paragraph.appendChild(text);
-        // document.body.appendChild(paragraph);
 
         // 입력 폼 삭제
         document.getElementById('form').remove();
@@ -434,19 +414,3 @@ function onChatHandler(event) {
     paragraph.appendChild(text);
     document.body.appendChild(paragraph);
 }
-
-// // [TEST] 화면 이동시 Picture-in-Picture 모드로 전환 [TEST]
-// document.addEventListener('visibilitychange', async () => {
-//     const video = document.getElementById('myVideo');
-//     if (document.visibilityState === 'hidden' && document.pictureInPictureEnabled) {
-//         try {
-//             video.requestPictureInPicture();
-//             console.log('Entered Picture-in-Picture mode');
-//         } catch (error) {
-//             console.error('Error entering Picture-in-Picture mode:', error);
-//         }
-//     }
-//     else if(document.pictureInPictureElement){
-//         document.exitPictureInPicture();
-//     }
-// });

@@ -1,53 +1,45 @@
 const express = require('express');
-const http = require('http');
 const https = require('https');
+const http = require('http');
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 const winston = require('winston');
 const crypto = require('crypto');
-const favicon = require('serve-favicon');
-
 const app = express();
 
-// script,views 폴더 안의 모든 파일에 대한 응답
+// script,views,asset 폴더 안의 모든 파일에 대한 응답
 app.use('/script', express.static(path.join(__dirname, 'script')));
 app.use('/views', express.static(path.join(__dirname, 'views')));
-app.use(favicon(__dirname + '/favicon.ico'));
+app.use('/asset', express.static(path.join(__dirname, 'asset')));
 
-// HTTP 요청에 대한 응답
-app.use(function (req, res, next) {
-    if (!req.secure) {
-        logger.info('!!!Redirecting to https!!!');
-        res.redirect(`https://${req.url}`);
-    } else {
-        next();
-    }
+// 뷰 렌더링
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/views/stream.html', 'utf8');
 });
 
-const options = {
-    cert: fs.readFileSync('SSL/certificate.crt', 'utf8'),
-    key: fs.readFileSync('SSL/privatekey.pem', 'utf8')
-};
+// manifest 요청에 대한 응답
+app.get('/manifest.json', (req, res) => {
+    res.sendFile(__dirname + '/manifest.json');
+});
 
-// // HTTP 서버 생성
-// const httpServer = http.createServer((request, response) => {
-//     logger.info('HTTP requested');
-//     // HTTPS 서버로 리다이렉트
-//     response.writeHead(301, { 'Location': 'https://' + request.headers.host + request.url });
-//     response.end();
-// });
+// favicon.ico 요청에 대한 응답
+app.get('/favicon.ico', (req, res) => {
+    res.sendFile(__dirname + '/favicon.ico');
+});
+
+// HTTPS 서버 옵션
+const options = {
+    cert: fs.readFileSync('SSL/cert.pem', 'utf8'),
+    key: fs.readFileSync('SSL/privkey.pem', 'utf8'),
+    ca: fs.readFileSync('SSL/chain.pem', 'utf8')
+};
 
 // HTTPS 서버 생성
 const httpsServer = https.createServer(options, app);
 
 // 웹소켓 서버 생성
 const wss = new WebSocket.Server({ server: httpsServer });
-
-// // 서버 리스닝 (80 포트)
-// httpServer.listen(80, () => {
-//     logger.info('HTTP server is listening on port 80');
-// });
 
 // 서버 리스닝 (443)
 httpsServer.listen(443, () => {
@@ -127,9 +119,6 @@ wss.on('connection', (ws) => {
         // message의 from(보낸사람)에 sessionId 저장
         parsedMessage.from = ws.sessionId;
 
-        // type, roomrequest, username, to 변수 저장
-        //const { type, from, to, message } = data;
-
         // 1. login 메세지인 경우
         if (parsedMessage.type === 'login') {
             // ws에 username 정보 저장
@@ -168,6 +157,7 @@ wss.on('connection', (ws) => {
             // room이 존재하지 않는 경우
             else {
                 logger.info("Room 생성 : " + parsedMessage.data.roomrequest);
+
                 // 해당 room을 생성하고 해당 room의 users에 user를 추가
                 const newRoom = {
                     roomnumber: parsedMessage.data.roomrequest,
@@ -185,15 +175,19 @@ wss.on('connection', (ws) => {
                 type: 'joined',
                 data: ws.sessionId
             };
-            logger.info("SEND : " + JSON.stringify(joinedMessage));
-            ws.send(JSON.stringify(joinedMessage));
 
+            logger.info("SEND : " + JSON.stringify(joinedMessage));
+
+            // 본인에게 전송
+            ws.send(JSON.stringify(joinedMessage));
             //해당 room에 존재하는 본인 제외 모든 user에게 login 메세지 전송
             sendMessageToAll(ws, parsedMessage);
         }
+        // 2. offer, answer, candidate 메세지인 경우
         else if (parsedMessage.type === 'offer' || parsedMessage.type === 'answer' || parsedMessage.type === 'candidate') { // 특정 user에게만 전송
             sendMessageToOne(ws, parsedMessage);
         }
+        // 3. 방 번호 중복 체크 메세지인 경우
         else if (parsedMessage.type === 'randomCheck') {
             const randomroom = rooms.find(room => room.roomnumber === parsedMessage.data)
             
@@ -211,7 +205,8 @@ wss.on('connection', (ws) => {
             ws.send(JSON.stringify(randomCheckMessage));
 
         }
-        else { // type이 정의되지 않은 경우
+        // type이 잘못된 경우
+        else { 
             logger.error('Unknown message type : ' + parsedMessage);
         }
     });
@@ -257,16 +252,6 @@ wss.on('connection', (ws) => {
         ws.send(errorMessage);
     });
 
-});
-
-// 뷰 렌더링
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/views/stream.html', 'utf8');
-});
-
-// favicon.ico 요청에 대한 응답
-app.get('/favicon.ico', (req, res) => {
-    res.sendFile(__dirname + '/favicon.ico');
 });
 
 // 세션 Id 저장 객체
