@@ -14,10 +14,12 @@
 
     <!--서비스 워커 등록-->
     <script>
-        if ("serviceWorker" in navigator) {
-            window.addEventListener("load", () => {
-                navigator.serviceWorker.register("/script/ServiceWorker.js");
-            });
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker
+                .register('./script/ServiceWorker.js')
+                .then(function () {
+                    console.log('서비스 워커가 등록됨!');
+                })
         }
     </script>
     <!-- <script type="module" src="/script/UserInterface.js"></script> -->

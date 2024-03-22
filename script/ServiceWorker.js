@@ -1,21 +1,21 @@
 const CACHE_NAME = 'WebRTC Cache v0.1';
 
 // cache 목록 (캐싱할 목록 설정.)
-const urlsToCache = [ 
-    'stream.html', 
-    'favicon.ico', 
-    'views/*',
-    'asset/*',
-    'script/*'
+const FilesToCache = [ 
+    '/favicon.ico', 
+    '/views/stream.html',
+    '/views/stream-desktop.css',
+    '/views/stream-mobile.css',
+    '/script/WebRTC.js'
 ];
 
-// cache 목록 등록, install상태시 cache 목록을 크롬cach에 저장한다. 
+// cache 목록 등록, install상태시 cache 목록을 크롬cache에 저장한다. 
 self.addEventListener('install', function(event) { 
     event.waitUntil( 
         caches.open(CACHE_NAME)
         .then(function(cache) { 
-            // console.log('Opened cache'); 
-            return cache.addAll(urlsToCache); 
+            //console.log('Opened cache'); 
+            return cache.addAll(FilesToCache); 
         }) 
     ); 
 });

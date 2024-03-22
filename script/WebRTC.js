@@ -14,7 +14,7 @@ const configuration = {
 
 //export let socket = null;
 //export var socket = new WebSocket("wss://kyj9447.iptime.org:3000")
-var socket = new WebSocket("wss://kyj9447.iptime.org:443")
+const socket = new WebSocket("wss://www.kyj9447.kr:443")
 // 이벤트 핸들러 설정
 socket.onmessage = onmessageHandler;
 
@@ -353,6 +353,7 @@ function randomRoom() {
     socket.send(JSON.stringify(message));
 }
 
+// 방 번호 표시, 숨기기 버튼
 window.displayRoomNumber = displayRoomNumber;
 function displayRoomNumber() {
     const displayButton = document.getElementById('displayButton');
@@ -365,15 +366,37 @@ function displayRoomNumber() {
     shareButton.style.display = shareButton.style.display === 'block' ? 'none' : 'block';
 }
 
+// 방 번호 공유하기 버튼
 window.shareRoomNumber = shareRoomNumber;
 function shareRoomNumber() {
     if (myRoomrequest !== '') {
         navigator.share({
             title: "WebRTC 방 번호 공유하기",
-            text: myRoomrequest,
+            url: "https://www.kyj9447.kr:443?roomrequest=" + myRoomrequest
         });
     }
 }
+
+// 공유받은 방 번호로 접속시 방 번호 자동 입력
+window.onload = function() {
+    // URL의 쿼리 파라미터 파싱
+    const params = new URLSearchParams(window.location.search);
+
+    // 'roomrequest' 파라미터 가져오기
+    const roomrequest = params.get('roomrequest');
+
+    // 'roomrequest' 파라미터가 존재하면
+    if(roomrequest !== null) {
+        // 방 번호 입력칸에 입력 후 비활성화 설정
+        const inputElement = document.getElementById('roomrequest');
+        inputElement.value = roomrequest;
+        inputElement.disabled = true;
+
+        // 랜덤 방 번호 버튼 비활성화
+        document.getElementById('randomButton').disabled = true;
+    }
+};
+
 
 window.sendChat = sendChat;
 function sendChat(event) {
