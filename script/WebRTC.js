@@ -274,7 +274,7 @@ function onmessageHandler(event) {
     }
 
     // etc.error를 받았을 때
-    else if (type === "error") {
+    else if (parsedMessage.type === "error") {
         console.log("error: " + JSON.stringify(parsedMessage));
     }
 };
