@@ -47,11 +47,11 @@ httpsServer.listen(443, () => {
 });
 
 // 100자 이상은 줄임표로 바꾸는 winston format
-const myFormat = winston.format.printf(({ level, message }) => {
-    if (message.length > 1000) {
-        message = message.substring(0, 1000) + '...';
+const myFormat = winston.format.printf(({ level, message, timestamp }) => {
+    if (message.length > 100) {
+        message = message.substring(0, 100) + '...';
     }
-    return `${level}: ${message}`;
+    return `[${timestamp}]${level}: ${message}`;
 });
 
 // winston logger 설정
@@ -59,6 +59,9 @@ const logger = winston.createLogger({
     level: 'info',
     format: winston.format.combine(
         winston.format.colorize(),
+        winston.format.timestamp({
+            format: 'HH:mm'
+        }),
         myFormat
     ),
     //defaultMeta: { service: 'app' },
@@ -190,7 +193,7 @@ wss.on('connection', (ws) => {
         // 3. 방 번호 중복 체크 메세지인 경우
         else if (parsedMessage.type === 'randomCheck') {
             const randomroom = rooms.find(room => room.roomnumber === parsedMessage.data)
-            
+
             const randomCheckMessage = {
                 type: 'randomCheckResult',
                 data: {
@@ -206,7 +209,7 @@ wss.on('connection', (ws) => {
 
         }
         // type이 잘못된 경우
-        else { 
+        else {
             logger.error('Unknown message type : ' + parsedMessage);
         }
     });
