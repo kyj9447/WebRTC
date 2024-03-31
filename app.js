@@ -147,7 +147,7 @@ wss.on('connection', (ws) => {
                         }
                     };
 
-                    ws.send(errorMessage);
+                    ws.send(JSON.stringify(errorMessage));
                     return; // ws.on('message') 핸들러 종료 (이후 함수 실행 안함)
                 }
                 // 해당 ws객체에 찾은 room 참조
@@ -252,7 +252,7 @@ wss.on('connection', (ws) => {
     ws.on('error', (error) => {
         logger.error(error);
         const errorMessage = { type: 'error', data: error };
-        ws.send(errorMessage);
+        ws.send(JSON.stringify(errorMessage));
     });
 
 });
